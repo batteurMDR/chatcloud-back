@@ -8,6 +8,11 @@ const io = require('socket.io')(server, {
         origin: '*'
     }
 });
+
+app.enable('trust proxy');
+
+app.get('/ping', (req, res) => res.send('pong'));
+
 const redis = require('socket.io-redis');
 const { Sequelize } = require('sequelize');
 const port = process.env.SERVER_PORT || 3000;
