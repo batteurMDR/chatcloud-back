@@ -1,25 +1,27 @@
 {
-  "name": "chatcloud-back",
-  "version": "1.0.0",
-  "description": "A Live Chat",
-  "main": "index.js",
-  "scripts": {
-    "start:dev": "nodemon index.js",
-    "start": "node index.js"
-  },
-  "author": "Dream Team",
-  "license": "ISC",
-  "dependencies": {
-    "express": "^4.17.1",
-    "mysql2": "^2.2.5",
-    "python-shell": "^3.0.0",
-    "redis": "^3.0.2",
-    "sequelize": "^6.4.0",
-    "socket.io": "^3.1.0",
-    "socket.io-redis": "^6.0.1",
-    "xlsx": "^0.17.2"
-  },
-  "devDependencies": {
-    "nodemon": "^2.0.7"
-  }
+    "name": "chatcloud-back",
+    "version": "1.0.0",
+    "description": "A Live Chat",
+    "main": "index.js",
+    "scripts": {
+        "start:dev": "nodemon index.js",
+        "start": "node index.js",
+        "prettier": "prettier --write ."
+    },
+    "author": "Dream Team",
+    "license": "ISC",
+    "dependencies": {
+        "express": "^4.17.1",
+        "mysql2": "^2.2.5",
+        "python-shell": "^3.0.0",
+        "redis": "^3.0.2",
+        "sequelize": "^6.4.0",
+        "socket.io": "^3.1.0",
+        "socket.io-redis": "^6.0.1",
+        "xlsx": "^0.17.2"
+    },
+    "devDependencies": {
+        "nodemon": "^2.0.7",
+        "prettier": "^2.4.1"
+    }
 }
