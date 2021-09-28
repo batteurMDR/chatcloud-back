@@ -47,13 +47,16 @@ server.listen(port, () => {
 // Routing
 app.use(express.static(path.join(__dirname, 'public')));
 
+const loggedUsers = [];
+
 //io.adapter(redis({ host: process.env.REDIS_HOST || 'localhost', port: process.env.REDIS_PORT || 6379 }));
 io.on('connection', (socket) => {
     let addedUser = false;
-
+    console.log(loggedUsers);
     // when the client emits 'new message', this listens and executes
     socket.on('new message', (data) => {
-        data = data.includes("'") ? data.replace(/[']/g, "\'") : data;
+        //data = data.includes("'") ? data.replace(/[']/g, "\'") : data;
+        data = data.includes("'") ? data.replace("'", " ") : data;
 
         sequelize.query("INSERT INTO `messages`(`id`, `message`, `username`) VALUES (null, '" + data + "', '" + socket.username + "')").then(() => {
             // we tell the client to execute 'new message'
@@ -121,41 +124,48 @@ io.on('connection', (socket) => {
         socket.username = username;
         addedUser = true;
 
-        // we store the username in the socket session for this client
-        sequelize.query("INSERT INTO `loggedUsers` (`id`, `username`) VALUES (null, '" + username + "')").then(() => {
-            sequelize.query('SELECT * FROM `loggedUsers`').then(([result]) => {
+        sequelize.query("SELECT * FROM `loggedusers` WHERE `username`='" + socket.username + "'").then(([result]) => {
+            if (result.length > 0) {
+                result.map(user => {
+                    loggedUsers.push({
+                        id: user.id,
+                        username: user.username
+                    });
+                });
                 socket.emit('login', result.map((r) => r.username));
                 // echo globally (all clients) that a person has connected
                 socket.broadcast.emit('user joined', socket.username);
-            })
-             .then(() => {
-                 console.log('User saved in Database');
-             })
-             .catch(err => {
-                 if (err) console.log(err.message);
-             });
-            
-            sequelize.query('SELECT * FROM messages LIMIT 50').then(([result]) => {
-                socket.emit('previous messages', result.map((r) => ({ username: r.username, message: r.message })));
-            });
-        })
-        .catch(err => {
-            // when user exist in database
-            if (err.message.includes('Validation')) {
-                sequelize.query("SELECT * FROM `loggedUsers` WHERE username='" + socket.username + "'").then(([result]) => {
-                    socket.emit('login', result.map((r) => r.username));
-                    // echo globally (all clients) that a person has connected
-                    socket.broadcast.emit('user joined', socket.username);
-                })
-                 .then(() => {
-                     console.log('User exist in Database');
-                 })
-                 .catch(err => {
-                     if (err) console.log(err.message);
-                 });
                 
                 sequelize.query('SELECT * FROM messages LIMIT 50').then(([result]) => {
                     socket.emit('previous messages', result.map((r) => ({ username: r.username, message: r.message })));
+                });
+            } else {
+                // we store the username in the socket session for this client
+                sequelize.query("INSERT INTO `loggedUsers` (`id`, `username`) VALUES (null, '" + username + "')").then(() => {
+                    sequelize.query('SELECT * FROM `loggedUsers`').then(([result]) => {
+                        socket.emit('login', result.map((r) => r.username));
+                        // echo globally (all clients) that a person has connected
+                        socket.broadcast.emit('user joined', socket.username);
+                        result.map(user => {
+                            loggedUsers.push({
+                                id: user.id,
+                                username: user.username
+                            });
+                        })
+                    })
+                    .then(() => {
+                        console.log('User saved in Database');
+                    })
+                    .catch(err => {
+                        if (err) console.log(err.message);
+                    });
+                    
+                    sequelize.query('SELECT * FROM messages LIMIT 50').then(([result]) => {
+                        socket.emit('previous messages', result.map((r) => ({ username: r.username, message: r.message })));
+                    });
+                })
+                .catch(err => {
+                    if (err) console.log(err.message);
                 });
             }
         });
@@ -174,11 +184,9 @@ io.on('connection', (socket) => {
     // when the user disconnects.. perform this
     socket.on('disconnect', () => {
         if (addedUser) {
-            sequelize.query("DELETE FROM `loggedUsers` WHERE username='" + socket.username + "'").then(([result]) => {
-                // echo globally that this client has left
-                socket.broadcast.emit('user left', socket.username);
-            });
+            loggedUsers.filter(user => user.name !== socket.username);
         }
+        loggedUsers.filter(user => user.name !== socket.username);
     });
 
     setInterval(async () => {
@@ -186,7 +194,7 @@ io.on('connection', (socket) => {
         console.log('General score ' + generalScore);
 
         if (socket.username !== undefined) {
-            await sequelize.query("UPDATE `loggedUsers` SET `score` = " + generalScore + "WHERE `username` = '" + socket.username + "'").then(() => {
+            await sequelize.query("UPDATE `loggedUsers` SET `score` = " + generalScore + "WHERE `username`='" + socket.username + "'").then(() => {
                 console.log('General score saved into databse');
             }).catch(err => {
                 if (err) console.log(err.message);
