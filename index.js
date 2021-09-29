@@ -5,6 +5,7 @@ const app = express();
 const path = require("path");
 const { PythonShell } = require("python-shell");
 const { getGeneralScore } = require("./functions/getGeneralScore");
+const { sendEmail } = require('./functions/sendEmail');
 const fs = require("fs");
 const xlsx = require("xlsx");
 const server = require("http").createServer(app);
@@ -89,11 +90,11 @@ io.on("connection", (socket) => {
         console.log(socket.username, "send message");
         sequelize
             .query(
-                "INSERT INTO `messages`(`id`, `message`, `username`, `score`) VALUES (null, '" +
+                "INSERT INTO `messages`(`id`, `message`, `username`, `score`, `toneName`) VALUES (null, '" +
                     data +
                     "', '" +
                     socket.username +
-                    "', 0)"
+                    "', 0, '')"
             )
             .then((message) => {
                 // we tell the client to execute 'new message'
@@ -111,7 +112,7 @@ io.on("connection", (socket) => {
                             if (JSON.parse(results[0]).document_tone.tones[0] !== undefined) {
                                 let score = JSON.parse(results[0]).document_tone.tones[0].score;
                                 let toneName = JSON.parse(results[0]).document_tone.tones[0].tone_name;
-                                return resolve(score);
+                                return resolve({score: score, toneName: toneName});
                             }
                             resolve(0);
                         });
@@ -119,7 +120,7 @@ io.on("connection", (socket) => {
                     score = result;
 
                     await sequelize
-                        .query("UPDATE `messages` SET `score` = " + score + " WHERE `id` = '" + newMessageId + "'")
+                        .query("UPDATE `messages` SET `score` = " + score.score + ", `toneName` = '" + score.toneName + "' WHERE `id` = '" + newMessageId + "'")
                         .then(() => {})
                         .catch((err) => {
                             if (err) console.error(err.message);
@@ -133,12 +134,11 @@ io.on("connection", (socket) => {
                         const newMessage = {
                             username: socket.username,
                             message: data,
-                            score: score,
+                            score: score.score,
                         };
-                        console.log("Score " + score, newMessage);
+                        console.log("Score " + score.score, newMessage);
                         socket.broadcast.emit("new message", newMessage);
                         socket.emit("new message", newMessage);
-                        // Fonction calcul score global utilisateur
                         let generalScore = await getGeneralScore(sequelize, socket.username);
                         socket.broadcast.emit("update user score", {
                             username: socket.username,
@@ -148,7 +148,37 @@ io.on("connection", (socket) => {
                             username: socket.username,
                             score: generalScore,
                         });
-                        //  TRIGGER UN MAIL
+                        
+                        let toneNameMean = [];
+
+                        await sequelize
+                            .query(
+                                "SELECT * FROM `messages` WHERE `username`='" + socket.username + "' AND `score` > " + 0
+                            ).then(([results]) => {
+                                results.forEach(msg => {
+                                    if (msg.toneName === 'Sadness') {
+                                        toneNameMean.push(-1);
+                                    } else {
+                                        toneNameMean.push(1);
+                                    }
+                                });
+                            }).catch(err => {
+                                if (err) console.log(err);
+                            });
+                        console.log('Tone name mean array ', toneNameMean);
+
+                        let avg = toneNameMean.length;
+                        let sumOfToneNameMean = toneNameMean.reduce((accumulator, currentValue) => accumulator + currentValue);
+                        console.log('avg ' + avg);
+                        console.log('sum of tone name mean ' + sumOfToneNameMean);
+                        console.log(sumOfToneNameMean / avg);
+
+                        // Send email
+                        if ((sumOfToneNameMean / avg) < 0) {
+                            let mailSent = await sendEmail('This is an alert !');
+                            console.log(mailSent);
+                        }
+
                         await sequelize
                             .query(
                                 "UPDATE `users` SET `score` = " +
